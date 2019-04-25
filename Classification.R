@@ -1,4 +1,4 @@
-# load necessary packages 
+# load necessary packages ----
 library(readr)
 library(tibble)
 library(corrplot)
@@ -16,7 +16,7 @@ names(wdbc) <- c("radius1", "texture1", "perimeter1", "area1", "smoothness1", "c
 # Factorize target variable with in a more intiutive manner (m is malignent, b is benign)
 wdbc$class <- factor(wdbc$class, levels = c(1, 2), labels = c("b", "m"))
 
-# Exploratory data analysis
+# Exploratory data analysis-----
 # Checing for NA
 any(is.na(wdbc)) # not any NA
 
@@ -26,6 +26,21 @@ summary(wdbc)
 # Checking structure of the data
 str(wdbc) # all explanatory variables are numeric and response variable is binary
 
+#convert as data frame
+wdbc <- as.data.frame(wdbc)
+#simple plot for each column for quick checking
+
+for (i in seq(1, length(wdbc),1)){
+  if (class(wdbc[,i]) == 'numeric'){
+    hist(wdbc[,i], main= names(wdbc)[i])
+  } else if (class(wdbc[,i]) == 'factor'){
+    barplot(table(wdbc[,i]), main= names(wdbc)[i])
+  } else { 
+    print('there is nothing to plot')
+    }
+}
+
+  barplot(table(wdbc$class))
 # Checking for potential imbalance in response variable
 table(wdbc["class"]) # looks like balanced 
 prop.table(table(wdbc$class)) # looks like balanced 
@@ -45,8 +60,20 @@ mean((correlation > 0.9 | correlation < -0.9))
 
 # Feature engineering can be considered if the performance of the final model is not satisfactory
 
-# Modelling 
-# split data into training and test sets
+# Modelling ----
+# split data into training and test sets----
+#set seed 123
+set.seed(123)
+#stratified division with 80/20
+which_train <- createDataPartition(wdbc$class, 
+                                   p = 0.8, 
+                                   list = FALSE) 
+# lets use these indices to divide data into two samples
+
+wdbc_train <- wdbc[which_train,]
+wdbc_test <- wdbc[-which_train,]
+
+
 
 # Objective is to minimize type 2 error (cost of missing a person with malignant tumor)
 # We have a binary classification problem
@@ -60,3 +87,29 @@ ggplot(wdbc, aes(x = class, fill = class)) +
 ggplot(wdbc,aes(x=smoothness1,fill=class))+geom_density(alpha=0.25)+
   xlab(label = "Radius1")+
   ggtitle("Distribution of Radius1")
+
+####linear
+#train
+#predict
+#model valuation
+
+#####glm
+#train
+#predict
+#model valuation
+
+
+#####linear discriminant analysis
+#train
+#predict
+#model valuation
+
+####kNN
+#train
+#predict
+#model valuation
+
+####SVM
+#train
+#predict
+#model valuation

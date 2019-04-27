@@ -1,8 +1,18 @@
-# load necessary packages ----
+# load necessary packages 
 library(readr)
+library(dplyr)
 library(tibble)
 library(corrplot)
 library(ggplot2)
+library(AER)
+library(lmtest)
+library(nnet)
+library(MASS)
+library(caret)
+library(verification)
+library(e1071)
+library(janitor)
+library(class)
 
 # load data
 wdbc <- read_csv("wdbc.csv")
@@ -16,7 +26,7 @@ names(wdbc) <- c("radius1", "texture1", "perimeter1", "area1", "smoothness1", "c
 # Factorize target variable with in a more intiutive manner (m is malignent, b is benign)
 wdbc$class <- factor(wdbc$class, levels = c(1, 2), labels = c("b", "m"))
 
-# Exploratory data analysis-----
+# Exploratory data analysis
 # Checing for NA
 any(is.na(wdbc)) # not any NA
 
@@ -26,31 +36,227 @@ summary(wdbc)
 # Checking structure of the data
 str(wdbc) # all explanatory variables are numeric and response variable is binary
 
-#convert as data frame
-wdbc <- as.data.frame(wdbc)
-#simple plot for each column for quick checking
-
-for (i in seq(1, length(wdbc),1)){
-  if (class(wdbc[,i]) == 'numeric'){
-    hist(wdbc[,i], main= names(wdbc)[i])
-  } else if (class(wdbc[,i]) == 'factor'){
-    barplot(table(wdbc[,i]), main= names(wdbc)[i])
-  } else { 
-    print('there is nothing to plot')
-    }
-}
-
-  barplot(table(wdbc$class))
 # Checking for potential imbalance in response variable
 table(wdbc["class"]) # looks like balanced 
 prop.table(table(wdbc$class)) # looks like balanced 
 
-# checking for outliers
-cooksd <- cooks.distance(glm(class ~ ., 
-                             family = "binomial", 
-                             data = wdbc))
-rownames(wdbc[cooksd > 4*mean(cooksd, na.rm=T), ])
-plot(wdbc$radius1, wdbc$class)
+# Modelling
+# Data Partitioning
+set.seed(1)
+which_train <- createDataPartition(wdbc$class, 
+                                   p = 0.8, 
+                                   list = FALSE) 
+
+# Split data into training and test test 
+train <- wdbc[which_train,]
+test <- wdbc[-which_train,]
+
+# Comparison of the distribution of the dependent variable in both samples
+tabyl(train$class) # looks fine
+tabyl(test$class) # looks fine
+
+ctrl_cv5x3a <- trainControl(method = "repeatedcv",
+                            number = 5,
+                            classProbs = TRUE,
+                            summaryFunction = twoClassSummary,
+                            repeats = 3)
+
+# Logistic Regression
+set.seed(1)
+
+logit.train <- 
+  train(class ~ ., 
+        data = train, 
+        method = "glm",
+        metric = "ROC",
+        family = "binomial",
+        trControl = ctrl_cv5x3a)
+
+# Summary
+summary(logit.train)
+
+# Fitted values
+logit.train_fitted <- predict(logit.train,
+                              train,
+                              type = "prob")
+
+# Predicted values
+logit.train_forecasts <- predict(logit.train,
+                                 test,
+                                 type = "prob")
+
+# confusion matrix test set
+confusionMatrix(data = as.factor(ifelse(logit.train_forecasts["b"] > 0.5, 
+                                        "b",
+                                        "m")), 
+                reference = test$class, 
+                positive = "b") 
+
+# ROC test set
+roc.area(ifelse(test$class == "b", 1, 0),
+         logit.train_forecasts[,"b"])
+
+# confusion matrix train set
+confusionMatrix(data = as.factor(ifelse(logit.train_fitted["b"] > 0.5, 
+                                        "b",
+                                        "m")), 
+                reference = train$class, 
+                positive = "b") 
+
+# ROC train set
+roc.area(ifelse(train$class == "b", 1, 0),
+         logit.train_fitted[,"b"])
+
+
+# Linear Discriminant Analysis
+set.seed(1)
+
+lda.train <- 
+  train(class ~ ., 
+        data = train, 
+        method = "lda",
+        metric = "ROC",
+        trControl = ctrl_cv5x3a)
+
+# Summary
+summary(lda.train)
+
+# Fitted values
+lda.train_fitted <- predict(lda.train,
+                              train,
+                              type = "prob")
+
+# Predicted values
+lda.train_forecasts <- predict(lda.train,
+                                 test,
+                                 type = "prob")
+
+# confusion matrix test set
+confusionMatrix(data = as.factor(ifelse(lda.train_forecasts["b"] > 0.5, 
+                                        "b",
+                                        "m")), 
+                reference = test$class, 
+                positive = "b") 
+
+# ROC test set
+roc.area(ifelse(test$class == "b", 1, 0),
+         lda.train_forecasts[,"b"])
+
+# confusion matrix train set
+confusionMatrix(data = as.factor(ifelse(lda.train_fitted["b"] > 0.5, 
+                                        "b",
+                                        "m")), 
+                reference = train$class, 
+                positive = "b") 
+
+# ROC train set
+roc.area(ifelse(train$class == "b", 1, 0),
+         lda.train_fitted[,"b"])
+
+
+# Quadratic Discriminant Analysis
+set.seed(1)
+
+qda.train <- 
+  train(class ~ ., 
+        data = train, 
+        method = "qda",
+        metric = "ROC",
+        trControl = ctrl_cv5x3a)
+
+# Summary
+summary(qda.train)
+
+# Fitted values
+qda.train_fitted <- predict(qda.train,
+                            train,
+                            type = "prob")
+
+# Predicted values
+qda.train_forecasts <- predict(qda.train,
+                               test,
+                               type = "prob")
+
+# confusion matrix test set
+confusionMatrix(data = as.factor(ifelse(qda.train_forecasts["b"] > 0.5, 
+                                        "b",
+                                        "m")), 
+                reference = test$class, 
+                positive = "b") 
+
+# ROC test set
+roc.area(ifelse(test$class == "b", 1, 0),
+         qda.train_forecasts[,"b"])
+
+# confusion matrix train set
+confusionMatrix(data = as.factor(ifelse(qda.train_fitted["b"] > 0.5, 
+                                        "b",
+                                        "m")), 
+                reference = train$class, 
+                positive = "b") 
+
+# ROC train set
+roc.area(ifelse(train$class == "b", 1, 0),
+         qda.train_fitted[,"b"])
+
+
+# KNN
+# Save a model formula as a separate object
+model_formula <- class ~ .
+
+# create a data frame with the values of parameter k from 1 to 50
+different_k <- data.frame(k = 1:50)
+
+ctrl_cv5a <- trainControl(method = "cv",
+                          number = 5,
+                          classProbs = TRUE,
+                          summaryFunction = twoClassSummary)
+
+set.seed(1)
+
+train.knn_cv_scaled <- 
+  train(model_formula,
+        data = train, 
+        method = "knn",
+        trControl = ctrl_cv5a,
+        tuneGrid = different_k,
+        metric = "ROC",
+        preProcess = c("range"))
+
+# Summary
+summary(train.knn_cv_scaled)
+
+# plot elbow curve
+plot(train.knn_cv_scaled) 
+
+# Fitted values
+knn.fitted <- predict(train.knn_cv_scaled,
+                      train)
+
+# Predicted values
+knn.forecasts <- predict(train.knn_cv_scaled,
+                         test)
+
+# confusion matrix test set
+confusionMatrix(data = knn.forecasts,
+                reference = test$class, 
+                positive = "b") 
+
+# ROC test set
+roc.area(ifelse(test$class == "b", 1, 0),
+         ifelse(knn.forecasts == "b", 1, 0))
+
+# confusion matrix train set
+confusionMatrix(data = knn.fitted,
+                reference = train$class,
+                positive = "b")
+
+# ROC train set
+roc.area(ifelse(train$class == "b", 1, 0),
+         ifelse(knn.fitted == "b", 1, 0))
+
+
+
 
 # checking for multicollinearity 
 correlation <- cor(wdbc[,-c(31)])
@@ -58,58 +264,5 @@ mean((correlation > 0.5 | correlation < -0.5))
 mean((correlation > 0.7 | correlation < -0.7))
 mean((correlation > 0.9 | correlation < -0.9))
 
-# Feature engineering can be considered if the performance of the final model is not satisfactory
-
-# Modelling ----
-# split data into training and test sets----
-#set seed 123
-set.seed(123)
-#stratified division with 80/20
-which_train <- createDataPartition(wdbc$class, 
-                                   p = 0.8, 
-                                   list = FALSE) 
-# lets use these indices to divide data into two samples
-
-wdbc_train <- wdbc[which_train,]
-wdbc_test <- wdbc[-which_train,]
 
 
-
-# Objective is to minimize type 2 error (cost of missing a person with malignant tumor)
-# We have a binary classification problem
-# 
-corrplot(cor(wdbc[,-c(31)]), method = "ellipse", type = "upper") 
-
-ggplot(wdbc, aes(x = class, fill = class)) +
-  geom_bar(stat = "count", positin = "dodge") +
-  ggtitle("Distribution of Bening/Malignant Tumor")
-
-ggplot(wdbc,aes(x=smoothness1,fill=class))+geom_density(alpha=0.25)+
-  xlab(label = "Radius1")+
-  ggtitle("Distribution of Radius1")
-
-####linear
-#train
-#predict
-#model valuation
-
-#####glm
-#train
-#predict
-#model valuation
-
-
-#####linear discriminant analysis
-#train
-#predict
-#model valuation
-
-####kNN
-#train
-#predict
-#model valuation
-
-####SVM
-#train
-#predict
-#model valuation

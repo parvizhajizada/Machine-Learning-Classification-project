@@ -13,6 +13,12 @@ library(verification)
 library(e1071)
 library(janitor)
 library(class)
+library(kernlab)
+library(verification)
+library(tidyverse)
+library(gmodels)
+library(vcd)
+
 
 # load data
 wdbc <- read_csv("wdbc.csv")
@@ -256,6 +262,85 @@ roc.area(ifelse(train$class == "b", 1, 0),
          ifelse(knn.fitted == "b", 1, 0))
 
 
+# SWM
+# Setting train control
+ctrl_cv5x3 <- trainControl(method = "repeatedcv",
+                           number = 5,
+                           repeats = 3)
+
+# Parameters of svmLinear
+modelLookup("svmLinear")
+
+# Grid search
+parametersC <- data.frame(C = c(0.001, 0.01, 0.02, 0.05, 
+                                0.1, 0.2, 0.5, 1, 2, 5))
+
+# Train data
+set.seed(1)
+svm_Linear <- train(class ~ ., 
+                    data = train, 
+                    method = "svmLinear",
+                    tuneGrid = parametersC,
+                    trControl = ctrl_cv5x3)
+
+# Predicting
+svm_Linear_train_forecasts <- predict(svm_Linear, 
+                                      newdata = test)
+
+# Confusion Matrix
+confusionMatrix(svm_Linear_train_forecasts,
+                test$class,
+                positive = "b")
+
+# Parameters of svmPoly
+modelLookup("svmPoly")
+
+# Grid Search
+svm_parametersPoly <- expand.grid(C = c(0.001, 1),
+                                  degree = 2:5, 
+                                  scale = 1)
+
+# Train data
+set.seed(1)
+svm_poly <- train(class ~ ., 
+                  data = train, 
+                  method = "svmPoly",
+                  tuneGrid = svm_parametersPoly,
+                  trControl = ctrl_cv5x3)
+
+# Predicting
+svm_poly_train_forecasts <- predict(svm_poly, 
+                                    newdata = test)
+
+# Confusion Matrix
+confusionMatrix(svm_poly_train_forecasts,
+                test$class,
+                positive = "b")
+
+# Parameters of svmRadial
+modelLookup("svmRadial")
+
+# Grid Search
+parametersC_sigma <- 
+  expand.grid(C = c(0.01, 0.05, 0.1, 0.5, 1, 5),
+              sigma = c(0.05, 0.1, 0.2, 0.5, 1))
+
+# Train data
+set.seed(1)
+svm_Radial <- train(class ~ ., 
+                    data = train, 
+                    method = "svmRadial",
+                    tuneGrid = parametersC_sigma,
+                    trControl = ctrl_cv5x3)
+
+# Predicting
+svm_radial_train_forecasts <- predict(svm_Radial, 
+                                      newdata = test)
+
+# Confusion Matrix
+confusionMatrix(svm_radial_train_forecasts,
+                test$class,
+                positive = "b")
 
 
 # checking for multicollinearity 

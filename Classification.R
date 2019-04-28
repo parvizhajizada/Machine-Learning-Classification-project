@@ -33,14 +33,39 @@ any(is.na(wdbc)) # not any NA
 # Checing summary statistics
 summary(wdbc) 
 
+# #basic plot - expand plot panel to display otherwise error
+# 
+# par(mfrow=c(3,3))
+# #convert as new data frame 
+# wdbc1 <- as.data.frame(wdbc) 
+# #simple plot for each column for quick checking 
+# 
+# for (i in seq(1, length(wdbc1),1)){ 
+#   if (class(wdbc1[,i]) == 'numeric'){ 
+#     hist(wdbc1[,i], main= names(wdbc1)[i]) 
+#   } else if (class(wdbc1[,i]) == 'factor'){ 
+#     barplot(table(wdbc1[,i]), main= names(wdbc1)[i]) 
+#   } else {  
+#     print('there is nothing to plot') 
+#   } 
+# } 
+# par(mfrow=c(1,1)) 
+
 # Checking structure of the data
 str(wdbc) # all explanatory variables are numeric and response variable is binary
+
+
 
 # Checking for potential imbalance in response variable
 table(wdbc["class"]) # looks like balanced 
 prop.table(table(wdbc$class)) # looks like balanced 
 
 # Modelling
+#test result (use later)
+result <- list()
+result_df <- data.frame(Accuracy= as.numeric(), Balance_acc= as.numeric(), 
+                        roc= as.numeric())
+
 # Data Partitioning
 set.seed(1)
 which_train <- createDataPartition(wdbc$class, 
@@ -61,7 +86,7 @@ ctrl_cv5x3a <- trainControl(method = "repeatedcv",
                             summaryFunction = twoClassSummary,
                             repeats = 3)
 
-# Logistic Regression
+# Logistic Regression----
 set.seed(1)
 
 logit.train <- 
@@ -86,14 +111,14 @@ logit.train_forecasts <- predict(logit.train,
                                  type = "prob")
 
 # confusion matrix test set
-confusionMatrix(data = as.factor(ifelse(logit.train_forecasts["b"] > 0.5, 
+cMatrix<-confusionMatrix(data = as.factor(ifelse(logit.train_forecasts["b"] > 0.5, 
                                         "b",
                                         "m")), 
                 reference = test$class, 
                 positive = "b") 
 
 # ROC test set
-roc.area(ifelse(test$class == "b", 1, 0),
+roc<-roc.area(ifelse(test$class == "b", 1, 0),
          logit.train_forecasts[,"b"])
 
 # confusion matrix train set
@@ -107,8 +132,11 @@ confusionMatrix(data = as.factor(ifelse(logit.train_fitted["b"] > 0.5,
 roc.area(ifelse(train$class == "b", 1, 0),
          logit.train_fitted[,"b"])
 
+#add result
+cMatrix<- append(cMatrix, list(roc))
+result<- append(result,list(cMatrix))
 
-# Linear Discriminant Analysis
+# Linear Discriminant Analysis----
 set.seed(1)
 
 lda.train <- 
@@ -132,14 +160,14 @@ lda.train_forecasts <- predict(lda.train,
                                  type = "prob")
 
 # confusion matrix test set
-confusionMatrix(data = as.factor(ifelse(lda.train_forecasts["b"] > 0.5, 
+cMatrix<-confusionMatrix(data = as.factor(ifelse(lda.train_forecasts["b"] > 0.5, 
                                         "b",
                                         "m")), 
                 reference = test$class, 
                 positive = "b") 
 
 # ROC test set
-roc.area(ifelse(test$class == "b", 1, 0),
+roc<-roc.area(ifelse(test$class == "b", 1, 0),
          lda.train_forecasts[,"b"])
 
 # confusion matrix train set
@@ -153,8 +181,11 @@ confusionMatrix(data = as.factor(ifelse(lda.train_fitted["b"] > 0.5,
 roc.area(ifelse(train$class == "b", 1, 0),
          lda.train_fitted[,"b"])
 
+#add result
+cMatrix<- append(cMatrix, list(roc))
+result<- append(result,list(cMatrix))
 
-# Quadratic Discriminant Analysis
+# Quadratic Discriminant Analysis----
 set.seed(1)
 
 qda.train <- 
@@ -178,14 +209,14 @@ qda.train_forecasts <- predict(qda.train,
                                type = "prob")
 
 # confusion matrix test set
-confusionMatrix(data = as.factor(ifelse(qda.train_forecasts["b"] > 0.5, 
+cMatrix<-confusionMatrix(data = as.factor(ifelse(qda.train_forecasts["b"] > 0.5, 
                                         "b",
                                         "m")), 
                 reference = test$class, 
                 positive = "b") 
 
 # ROC test set
-roc.area(ifelse(test$class == "b", 1, 0),
+roc<-roc.area(ifelse(test$class == "b", 1, 0),
          qda.train_forecasts[,"b"])
 
 # confusion matrix train set
@@ -199,8 +230,11 @@ confusionMatrix(data = as.factor(ifelse(qda.train_fitted["b"] > 0.5,
 roc.area(ifelse(train$class == "b", 1, 0),
          qda.train_fitted[,"b"])
 
+#add result
+cMatrix<- append(cMatrix, list(roc))
+result<- append(result,list(cMatrix))
 
-# KNN
+# KNN----
 # Save a model formula as a separate object
 model_formula <- class ~ .
 
@@ -238,12 +272,12 @@ knn.forecasts <- predict(train.knn_cv_scaled,
                          test)
 
 # confusion matrix test set
-confusionMatrix(data = knn.forecasts,
+cMatrix<-confusionMatrix(data = knn.forecasts,
                 reference = test$class, 
                 positive = "b") 
 
 # ROC test set
-roc.area(ifelse(test$class == "b", 1, 0),
+roc<-roc.area(ifelse(test$class == "b", 1, 0),
          ifelse(knn.forecasts == "b", 1, 0))
 
 # confusion matrix train set
@@ -254,10 +288,112 @@ confusionMatrix(data = knn.fitted,
 # ROC train set
 roc.area(ifelse(train$class == "b", 1, 0),
          ifelse(knn.fitted == "b", 1, 0))
+#add result
+cMatrix<- append(cMatrix, list(roc))
+result<- append(result,list(cMatrix))
+
+# SWM ----
+# Setting train control 
+ctrl_cv5x3 <- trainControl(method = "repeatedcv", 
+                           number = 5, 
+                           repeats = 3) 
+
+# Parameters of svmLinear 
+modelLookup("svmLinear") 
+
+# Grid search 
+parametersC <- data.frame(C = c(0.001, 0.01, 0.02, 0.05,  
+                                0.1, 0.2, 0.5, 1, 2, 5)) 
+
+# Train data 
+set.seed(1) 
+svm_Linear <- train(class ~ .,  
+                    data = train,  
+                    method = "svmLinear", 
+                    tuneGrid = parametersC, 
+                    trControl = ctrl_cv5x3) 
+
+# Predicting 
+svm_Linear_train_forecasts <- predict(svm_Linear,  
+                                      newdata = test) 
+
+# Confusion Matrix 
+cMatrix<-confusionMatrix(svm_Linear_train_forecasts, 
+                test$class, 
+                positive = "b") 
+
+result<- append(result,list(cMatrix))
+
+
+# Parameters of svmPoly ----
+modelLookup("svmPoly") 
+
+# Grid Search 
+svm_parametersPoly <- expand.grid(C = c(0.001, 1), 
+                                  degree = 2:5,  
+                                  scale = 1) 
+
+# Train data 
+set.seed(1) 
+svm_poly <- train(class ~ .,  
+                  data = train,  
+                  method = "svmPoly", 
+                  tuneGrid = svm_parametersPoly, 
+                  trControl = ctrl_cv5x3) 
+
+# Predicting 
+svm_poly_train_forecasts <- predict(svm_poly,  
+                                    newdata = test) 
+
+# Confusion Matrix 
+cMatrix<-confusionMatrix(svm_poly_train_forecasts, 
+                test$class, 
+                positive = "b") 
+
+result<- append(result,list(cMatrix))
+
+# Parameters of svmRadial ----
+modelLookup("svmRadial") 
+
+# Grid Search 
+parametersC_sigma <-  
+  expand.grid(C = c(0.01, 0.05, 0.1, 0.5, 1, 5), 
+              sigma = c(0.05, 0.1, 0.2, 0.5, 1)) 
+
+# Train data 
+set.seed(1) 
+svm_Radial <- train(class ~ .,  
+                    data = train,  
+                    method = "svmRadial", 
+                    tuneGrid = parametersC_sigma, 
+                    trControl = ctrl_cv5x3) 
+
+# Predicting 
+svm_radial_train_forecasts <- predict(svm_Radial,  
+                                      newdata = test) 
+
+# Confusion Matrix 
+cMatrix <- confusionMatrix(svm_radial_train_forecasts, 
+                test$class, 
+                positive = "b") 
+
+result<- append(result,list(cMatrix))
 
 
 
+# Comparison test result ----
+for (i in seq(1,length(result),1)){
+  result_df[i,1] <- result[[i]][["overall"]][["Accuracy"]]
+  result_df[i,2] <- result[[i]][["byClass"]][["Balanced Accuracy"]]
+  if (i %in% list(1,2,3,4)){
+    result_df[i,3] <- result[[i]][[7]][["A"]]
+  } else {result_df[i,3]<- c('svm have no clear roc') }
+}
 
+row.names(result_df)<- c('Logistic Regression','Linear Discriminant',
+                         'Quadratic Discriminant','kNN','svmLinear',
+                         'svmPoly', 'svmRadial')
+result_df
 # checking for multicollinearity 
 correlation <- cor(wdbc[,-c(31)])
 mean((correlation > 0.5 | correlation < -0.5))

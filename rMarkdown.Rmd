@@ -1,23 +1,18 @@
 ---
-title: "Breast Cancer Classification with multiple Machine Learning models"
-author:
-  - Duy Tuan Doan
+title: "Breast Cancer Classification"
+author: 
   - Parviz Hajizada
+  - Duy Tuan Doan
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+# Introduction
+Breast Cancer is one of most earliest cancer recorded in human history and have taken countless lives. Even though no reliable and permanent cure have not been developed, detection at early stages is crucial because the sooner the better.
 
-## Introduction
+In this paper, we build classification models to identify if the tumor is benign (harmless) or malignant (harmful). This dataset is collected and provided by University of Wisconsin (1995) [link](ftp://ftp.cs.wisc.edu/math-prog/cpo-dataset/machine-learn/cancer/). It is composed of 30 descriptive features that are from a digitized image of a fine needle aspirate (FNA) of a breast mass.
 
-Breast Cancer is one of most earliest cancer recoreded in human history and have taken countless lives, esspecially majority is female. However, its awareness is not widespread until recently, Pink ribbon campagin begins to raise public attention. Though this disease have not yet developed reliable and permanent cure, detection of early stage, associated with higher survival rates is possible.
-
-In this paper, we would like to contribute our effort to combat this cancer by building classification models to identify if the target is benign (harmless) or malignant (harmful). This dataset is collected and provided by University of Wisconsin (1995) [link](ftp://ftp.cs.wisc.edu/math-prog/cpo-dataset/machine-learn/cancer/). 30 descriptive features are from a digitized image of a fine needle aspirate (FNA) of a breast mass.
-
-```{r results='hide', message=FALSE, warning=FALSE, include=FALSE}
-# load necessary packages 
+#### Load necessary packages
+```{r message = FALSE, warning = FALSE}
 library(readr)
 library(dplyr)
 library(tibble)
@@ -32,45 +27,40 @@ library(verification)
 library(e1071)
 library(janitor)
 library(class)
+```
 
-# load data
+#### Import data
+```{r message = FALSE}
 wdbc <- read_csv("wdbc.csv")
-
-#test result (use later)
-result <- list()
-result_df <- data.frame(Accuracy= as.numeric(), Balance_acc= as.numeric(), 
-                        roc= as.numeric())
 ```
 
 ## Data Preprocessing
-Rename the column's name according to meta
+#### Rename the columns
 ```{r}
 names(wdbc) <- c("radius1", "texture1", "perimeter1", "area1", "smoothness1", "compactness1", "concavity1", "concave_points1", "symmetry1", "fractal_dimension1",
                  "radius2", "texture2", "perimeter2", "area2", "smoothness2", "compactness2", "concavity2", "concave_points2", "symmetry2", "fractal_dimension2",
                  "radius3", "texture3", "perimeter3", "area3", "smoothness3", "compactness3", "concavity3", "concave_points3", "symmetry3", "fractal_dimension3",
                  "class")
-head(wdbc)
 ```
-Instead of numer, we factorize target variable with in a more intiutive manner (m is malignent, b is benign)
+
+#### Factorize target variable
 ```{r}
+# b stand for benign, m stands for malignant type of tumor 
 wdbc$class <- factor(wdbc$class, levels = c(1, 2), labels = c("b", "m"))
 ```
 
 ## Exploratory data analysis
-### Checing for NA
-
+#### Missing data
 ```{r}
 any(is.na(wdbc)) 
 ```
-There is no NA
 
-### Checing summary statistics
+#### Summary statistics
 ```{r}
 summary(wdbc) 
 ```
 
-Basic plot for each columns:
-
+#### Distribution of each variable
 ```{r pressure, echo=FALSE,out.width = "110%", out.height='150%'}
 par(mfrow=c(3,3))
 #convert as data frame 
@@ -89,56 +79,44 @@ for (i in seq(1, length(wdbc),1)){
 par(mfrow=c(1,1)) 
 ```
 
-A majority is right skewed and many are classified as benign so we can have first intuition that if many measurements are small, then there is a high chance that it is not harmful in effect. 
-However, such intepretation is only slightly better than random guess, we could investigate more, and build models to accurately predict it.
+Majority of the distributions are right skewed and the target variable is classified as benign in most of the cases. So it is better not to use accuracy but ROC to quantify the performance of the models. 
 
-### Checking structure of the data
-
+#### Structure of the data
 ```{r}
-str(wdbc)
+sapply(wdbc, class)
 ```
 
-All explanatory variables are numeric and response variable is binary.
-
-## Modelling
-### Checking for potential imbalance in response variable
-```{r}
-rbind(obs=table(wdbc["class"]),prop=prop.table(table(wdbc$class)))
-
-```
-The data set looks almost balanced 
-
-### Data Partitioning and set cross validation
+# Modelling
+#### Data Partitioning
 ```{r}
 set.seed(1)
 which_train <- createDataPartition(wdbc$class, 
                                    p = 0.8, 
                                    list = FALSE) 
 ```
-Split data into training and test test 
+
+#### Train and test set
 ```{r}
 train <- wdbc[which_train,]
 test <- wdbc[-which_train,]
 ```
-Comparison of the distribution of the dependent variable in both samples
+
+#### Distribution of the dependent variable in both sets
 ```{r}
 tabyl(train$class)
 tabyl(test$class)
 ```
-The percetage of each class is maintained in both sets
 
-Set cross validation at 5x3
+#### Cross validation
 ```{r}
-ctrl_cv5x3a <- trainControl(method = "repeatedcv",
-                            number = 5,
-                            classProbs = TRUE,
-                            summaryFunction = twoClassSummary,
-                            repeats = 3)
+ctrl_cv5x3 <- trainControl(method = "repeatedcv",
+                           number = 5,
+                           classProbs = TRUE,
+                           summaryFunction = twoClassSummary,
+                           repeats = 3)
 ```
 
-
-### Logistic Regression
-
+## Logistic Regression
 ```{r, warning=FALSE}
 logit.train <- 
   train(class ~ ., 
@@ -146,454 +124,340 @@ logit.train <-
         method = "glm",
         metric = "ROC",
         family = "binomial",
-        trControl = ctrl_cv5x3a)
+        trControl = ctrl_cv5x3)
 ```
 
-a) Summary
-```{r}
-summary(logit.train)
-```
-b) Fitted values
+#### Fitted values
 ```{r}
 logit.train_fitted <- predict(logit.train,
                               train,
                               type = "prob")
 ```
-Confusion matrix train set
+
+#### Confusion matrix - train set
 ```{r}
-confusionMatrix(data = as.factor(ifelse(logit.train_fitted["b"] > 0.5, 
-                                        "b",
-                                        "m")), 
+confusionMatrix(data = as.factor(ifelse(logit.train_fitted["b"] > 0.5, "b", "m")), 
                 reference = train$class, 
                 positive = "b") 
 ```
- ROC train set
+
+#### ROC - train set
 ```{r}
 roc.area(ifelse(train$class == "b", 1, 0),
-         logit.train_fitted[,"b"])
+         logit.train_fitted[,"b"])$A
 ```
 
-c) Predicted values
+#### Predicted values
 ```{r}
-
 logit.train_forecasts <- predict(logit.train,
                                  test,
                                  type = "prob")
 ```
-Confusion matrix test set
+
+#### Confusion matrix - test set
 ```{r}
-cMatrix<-confusionMatrix(data = as.factor(ifelse(logit.train_forecasts["b"] > 0.5, 
-                                        "b",
-                                        "m")), 
+confusionMatrix(data = as.factor(ifelse(logit.train_forecasts["b"] > 0.5, "b", "m")), 
                 reference = test$class, 
                 positive = "b") 
-cMatrix
 ```
-ROC test set
+
+#### ROC - test set
 ```{r}
-roc<- roc.area(ifelse(test$class == "b", 1, 0),
-         logit.train_forecasts[,"b"])
-roc
+roc.logit <- roc.area(ifelse(test$class == "b", 1, 0),
+                      logit.train_forecasts[,"b"])$A
 ```
 
-
-```{r add_test_result, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-cMatrix<- append(cMatrix, list(roc))
-result<- append(result,list(cMatrix))
-```
-
-
-### Linear Discriminant Analysis
-
+## Linear Discriminant Analysis
 ```{r}
-set.seed(1)
-
 lda.train <- 
   train(class ~ ., 
         data = train, 
         method = "lda",
         metric = "ROC",
-        trControl = ctrl_cv5x3a)
+        trControl = ctrl_cv5x3)
 ```
 
-a) Summary
-```{r}
-summary(lda.train)
-```
-b) Fitted values
+#### Fitted values
 ```{r}
 lda.train_fitted <- predict(lda.train,
-                              train,
-                              type = "prob")
+                            train,
+                            type = "prob")
 ```
-Confusion matrix train set
+
+#### Confusion matrix - train set
 ```{r}
-confusionMatrix(data = as.factor(ifelse(lda.train_fitted["b"] > 0.5, 
-                                        "b",
-                                        "m")), 
+confusionMatrix(data = as.factor(ifelse(lda.train_fitted["b"] > 0.5, "b", "m")), 
                 reference = train$class, 
                 positive = "b") 
-
 ```
- ROC train set
+
+#### ROC - train set
 ```{r}
 roc.area(ifelse(train$class == "b", 1, 0),
-         lda.train_fitted[,"b"])
+         lda.train_fitted[,"b"])$A
 ```
 
-c) Predicted values
+#### Predicted values
 ```{r}
-
 lda.train_forecasts <- predict(lda.train,
-                                 test,
-                                 type = "prob")
+                               test,
+                               type = "prob")
 ```
-Confusion matrix test set
+
+#### Confusion matrix - test set
 ```{r}
-cMatrix<-confusionMatrix(data = as.factor(ifelse(lda.train_forecasts["b"] > 0.5, 
-                                        "b",
-                                        "m")), 
+confusionMatrix(data = as.factor(ifelse(lda.train_forecasts["b"] > 0.5, "b", "m")), 
                 reference = test$class, 
                 positive = "b") 
-cMatrix
 ```
-ROC test set
+
+#### ROC - test set
 ```{r}
-roc<- roc.area(ifelse(test$class == "b", 1, 0),
-         lda.train_forecasts[,"b"])
-roc
+roc.lda <- roc.area(ifelse(test$class == "b", 1, 0),
+                    lda.train_forecasts[,"b"])$A
 ```
 
-
-```{r add_test_result, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-```
-
-
-### Quadratic Discriminant Analysis
-
+## Quadratic Discriminant Analysis
 ```{r}
-set.seed(1)
-
 qda.train <- 
   train(class ~ ., 
         data = train, 
         method = "qda",
         metric = "ROC",
-        trControl = ctrl_cv5x3a)
-
+        trControl = ctrl_cv5x3)
 ```
 
-a) Summary
-```{r}
-summary(qda.train)
-```
-b) Fitted values
+#### Fitted values
 ```{r}
 qda.train_fitted <- predict(qda.train,
                             train,
                             type = "prob")
 ```
-Confusion matrix train set
+
+#### Confusion matrix - train set
 ```{r}
-confusionMatrix(data = as.factor(ifelse(qda.train_fitted["b"] > 0.5, 
-                                        "b",
-                                        "m")), 
+confusionMatrix(data = as.factor(ifelse(qda.train_fitted["b"] > 0.5, "b", "m")), 
                 reference = train$class, 
                 positive = "b") 
 ```
- ROC train set
+ 
+#### ROC - train set
 ```{r}
 roc.area(ifelse(train$class == "b", 1, 0),
-         qda.train_fitted[,"b"])
-
+         qda.train_fitted[,"b"])$A
 ```
 
-c) Predicted values
+#### Predicted values
 ```{r}
 
 qda.train_forecasts <- predict(qda.train,
                                test,
                                type = "prob")
 ```
-Confusion matrix test set
+
+#### Confusion matrix - test set
 ```{r}
-cMatrix<-confusionMatrix(data = as.factor(ifelse(qda.train_forecasts["b"] > 0.5, 
-                                        "b",
-                                        "m")), 
+confusionMatrix(data = as.factor(ifelse(qda.train_forecasts["b"] > 0.5, "b", "m")), 
                 reference = test$class, 
                 positive = "b") 
-cMatrix
 ```
-ROC test set
+
+#### ROC - test set
 ```{r}
-roc<- roc.area(ifelse(test$class == "b", 1, 0),
-         qda.train_forecasts[,"b"])
-roc
+roc.qda <- roc.area(ifelse(test$class == "b", 1, 0),
+                    qda.train_forecasts[,"b"])$A
 ```
 
-
-```{r add_test_result, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-```
-
-
-
-### kNN
-
+## KNN
 ```{r}
-set.seed(1)
-
-# Save a model formula as a separate object
-model_formula <- class ~ .
-# create a data frame with the values of parameter k from 1 to 50
-different_k <- data.frame(k = 1:50)
-
-ctrl_cv5a <- trainControl(method = "cv",
-                          number = 5,
-                          classProbs = TRUE,
-                          summaryFunction = twoClassSummary)
 train.knn_cv_scaled <- 
-  train(model_formula,
+  train(class ~ .,
         data = train, 
         method = "knn",
-        trControl = ctrl_cv5a,
-        tuneGrid = different_k,
+        trControl = ctrl_cv5x3,
+        tuneGrid = data.frame(k = 1:30),
         metric = "ROC",
         preProcess = c("range"))
 
 ```
 
-a) Summary
-```{r}
-summary(train.knn_cv_scaled)
-```
-Plot elbow curve
+#### Elbow curve
 ```{r}
 plot(train.knn_cv_scaled) 
 ```
 
-
-b) Fitted values
+#### Fitted values
 ```{r}
-# Fitted values
 knn.fitted <- predict(train.knn_cv_scaled,
                       train)
 ```
-Confusion matrix train set
+
+#### Confusion matrix - train set
 ```{r}
 confusionMatrix(data = knn.fitted,
                 reference = train$class,
                 positive = "b")
 ```
- ROC train set
+
+#### ROC - train set
 ```{r}
 roc.area(ifelse(train$class == "b", 1, 0),
-         ifelse(knn.fitted == "b", 1, 0))
-
+         ifelse(knn.fitted == "b", 1, 0))$A
 ```
 
-c) Predicted values
+#### Predicted values
 ```{r}
 knn.forecasts <- predict(train.knn_cv_scaled,
                          test)
 ```
-Confusion matrix test set
+
+#### Confusion matrix - test set
 ```{r}
-cMatrix<-confusionMatrix(data = knn.forecasts,
+confusionMatrix(data = knn.forecasts,
                 reference = test$class, 
                 positive = "b") 
-cMatrix
 ```
-ROC test set
+
+#### ROC - test set
 ```{r}
-roc<- roc.area(ifelse(test$class == "b", 1, 0),
-         ifelse(knn.forecasts == "b", 1, 0))
-roc
+roc.knn <- roc.area(ifelse(test$class == "b", 1, 0),
+                    ifelse(knn.forecasts == "b", 1, 0))$A
 ```
 
-
-```{r add_test_result, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-```
-
-
-
-
-
-### SVMLinear
-set repeated cross validation
+## SVMLinear
+#### Parameters
 ```{r}
-ctrl_cv5x3 <- trainControl(method = "repeatedcv", 
-                           number = 5, 
-                           repeats = 3) 
 modelLookup("svmLinear") 
 ```
-a) Parameters of svmLinear 
- 
+
+#### Grid of parameters
 ```{r}
 parametersC <- data.frame(C = c(0.001, 0.01, 0.02, 0.05,  
                                 0.1, 0.2, 0.5, 1, 2, 5))
-
 ```
 
+#### Train data
 ```{r}
-set.seed(1) 
 svm_Linear <- train(class ~ .,  
                     data = train,  
                     method = "svmLinear", 
                     tuneGrid = parametersC, 
+                    metric = "ROC",
                     trControl = ctrl_cv5x3) 
 ```
-b) Predicting 
+
+#### Predicted values
 ```{r}
-svm_Linear_train_forecasts <- predict(svm_Linear,  
-                                      newdata = test) 
+svm_Linear_forecasts <- predict(svm_Linear,  
+                                newdata = test) 
 ```
 
-c) Confusion Matrix 
+#### Fitted values
 ```{r}
-cMatrix<-confusionMatrix(svm_Linear_train_forecasts, 
-                test$class, 
+svm_linear_fitted <- predict(svm_Linear,
+                             train)
+```
+
+#### Confusion matrix - train set
+```{r}
+confusionMatrix(data = svm_linear_fitted,
+                reference = train$class,
+                positive = "b")
+```
+
+#### ROC - train set
+```{r}
+roc.area(ifelse(train$class == "b", 1, 0),
+         ifelse(svm_linear_fitted == "b", 1, 0))$A
+```
+
+#### Confusion matrix - test set
+```{r}
+confusionMatrix(data = svm_Linear_forecasts,
+                reference = test$class, 
                 positive = "b") 
 ```
 
-
-
-```{r add_test_result2, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-result<- append(result,list(cMatrix))
-```
-
-
-
-
-
-### SVMPoly
-
+#### ROC - test set
 ```{r}
-modelLookup("svmPoly") 
-```
-a) Parameters and Grid Search 
- 
-```{r}
-parametersC <- data.frame(C = c(0.001, 0.01, 0.02, 0.05,  
-                                0.1, 0.2, 0.5, 1, 2, 5))
-svm_parametersPoly <- expand.grid(C = c(0.001, 1), 
-                                  degree = 2:5,  
-                                  scale = 1) 
-
-```
-b) Train
-
-```{r}
-set.seed(1) 
-svm_poly <- train(class ~ .,  
-                  data = train,  
-                  method = "svmPoly", 
-                  tuneGrid = svm_parametersPoly, 
-                  trControl = ctrl_cv5x3) 
-```
-c) Predicting 
-```{r}
-svm_poly_train_forecasts <- predict(svm_poly,  
-                                    newdata = test) 
+roc.svm_linear <- roc.area(ifelse(test$class == "b", 1, 0),
+                           ifelse(svm_Linear_forecasts == "b", 1, 0))$A
 ```
 
-d) Confusion Matrix 
-```{r}
-cMatrix<-confusionMatrix(svm_poly_train_forecasts, 
-                test$class, 
-                positive = "b") 
-```
-
-```{r add_test_result2, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-```
-
-
-
-
-
-### SVMRadial
-
+## SVMRadial
+#### Parameters
 ```{r}
 modelLookup("svmRadial") 
 ```
-a) Parameters and Grid Search 
- 
+
+#### Grid of parameters
 ```{r}
 parametersC_sigma <-  
   expand.grid(C = c(0.01, 0.05, 0.1, 0.5, 1, 5), 
               sigma = c(0.05, 0.1, 0.2, 0.5, 1)) 
 
 ```
-b) Train
 
-```{r}
-set.seed(1) 
+#### Train data
+```{r warning = FALSE, message = FALSE, include = FALSE}
 svm_Radial <- train(class ~ .,  
                     data = train,  
                     method = "svmRadial", 
                     tuneGrid = parametersC_sigma, 
                     trControl = ctrl_cv5x3) 
-
-```
-c) Predicting 
-```{r}
-svm_radial_train_forecasts <- predict(svm_Radial,  
-                                      newdata = test) 
 ```
 
-d) Confusion Matrix 
+#### Predicted values
 ```{r}
-cMatrix <- confusionMatrix(svm_radial_train_forecasts, 
-                test$class, 
+svm_Radial_forecasts <- predict(svm_Radial,  
+                                newdata = test) 
+```
+
+#### Fitted values
+```{r}
+svm_Radial_fitted <- predict(svm_Radial,
+                             train)
+```
+
+#### Confusion matrix - train set
+```{r}
+confusionMatrix(data = svm_Radial_fitted,
+                reference = train$class,
+                positive = "b")
+```
+
+#### ROC - train set
+```{r}
+roc.area(ifelse(train$class == "b", 1, 0),
+         ifelse(svm_Radial_fitted == "b", 1, 0))$A
+```
+
+#### Confusion matrix - test set
+```{r}
+confusionMatrix(data = svm_Radial_forecasts,
+                reference = test$class, 
                 positive = "b") 
 ```
 
-```{r add_test_result2, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-```
-
-
-
-
-
-## Comparison test result
-```{r , message=FALSE, warning=FALSE, include=FALSE, results='hide'}
-for (i in seq(1,length(result),1)){
-  result_df[i,1] <- result[[i]][["overall"]][["Accuracy"]]
-  result_df[i,2] <- result[[i]][["byClass"]][["Balanced Accuracy"]]
-  if (i %in% list(1,2,3,4)){
-    result_df[i,3] <- result[[i]][[7]][["A"]]
-  } else {result_df[i,3]<- c('svm have no clear roc') }
-}
-
-row.names(result_df)<- c('Logistic Regression','Linear Discriminant',
-                         'Quadratic Discriminant','kNN','svmLinear',
-                         'svmPoly', 'svmRadial')
-```
+#### ROC - test set
 ```{r}
-result_df
+roc.svm_radial <- roc.area(ifelse(test$class == "b", 1, 0),
+                           ifelse(svm_Radial_forecasts == "b", 1, 0))$A
 ```
 
+## Choose the best model
+#### ROC
+```{r}
+test.roc <- data.frame(model=c("logit","lda","qda","knn","svm_linear", "svm_radial"),
+                       roc=c(roc.logit, roc.lda, roc.qda, roc.knn,roc.svm_linear, roc.svm_radial))
+test.roc <- test.roc[order(test.roc$roc, decreasing=TRUE),]
+test.roc$model <- factor(test.roc$model, levels=test.roc$model)
+test.roc
+```
 
-## Conclusion
-
-We have successfully built some models with high rate of accuracy. Though it is possible to deploy our model for direct use, for better result, we highly advise use with some machine learning models connect with background checking. By making effort to health advocacy, we can push back this deadly diseases on women's and social health. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#### Plot AUC
+```{r}
+theme_set(theme_gray(base_size = 18))
+ggplot(data = test.roc, aes(x = model, y = roc)) +
+  geom_bar(stat="identity")
+```

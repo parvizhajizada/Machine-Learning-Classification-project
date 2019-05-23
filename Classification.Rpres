@@ -1,0 +1,300 @@
+Breast Cancer Classification 
+========================================================
+author: Parviz Hajizada
+date: May 21th, 2019
+autosize: true
+
+Introduction
+========================================================
+
+- Source: UCI Machine Learning Repository
+- Data: Breast Cancer Wisconsin (Diagnostic)
+- Target variable: benign or malignant tumor   
+
+Exploratory Data Analysis
+========================================================
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+library(readr)
+library(dplyr)
+library(tibble)
+library(corrplot)
+library(ggplot2)
+library(AER)
+library(lmtest)
+library(nnet)
+library(MASS)
+library(caret)
+library(verification)
+library(e1071)
+library(janitor)
+library(class)
+library(gridExtra)
+```
+
+```{r message = FALSE, echo = FALSE}
+wdbc <- read_csv("wdbc.csv")
+```
+
+```{r echo = FALSE}
+names(wdbc) <- c("radius1", "texture1", "perimeter1", "area1", "smoothness1", "compactness1", "concavity1", "concave_points1", "symmetry1", "fractal_dimension1",
+                 "radius2", "texture2", "perimeter2", "area2", "smoothness2", "compactness2", "concavity2", "concave_points2", "symmetry2", "fractal_dimension2",
+                 "radius3", "texture3", "perimeter3", "area3", "smoothness3", "compactness3", "concavity3", "concave_points3", "symmetry3", "fractal_dimension3",
+                 "class")
+```
+
+```{r echo = FALSE}
+# b stand for benign, m stands for malignant type of tumor 
+wdbc$class <- factor(wdbc$class, levels = c(1, 2), labels = c("b", "m"))
+```
+
+- no missing value
+- only numerical features
+
+Pairwise correlation
+========================================================
+
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+cor(wdbc$class %>% as.numeric(), wdbc %>% select_if(is.numeric) , use="pairwise.complete.obs") %>% 
+  as.data.frame(row.names = 'Correlation') %>% 
+  sort(decreasing = TRUE) %>% 
+  t() %>%
+  head()
+```
+
+Density plots of highly correlated variables
+========================================================
+
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+p1 <- ggplot(wdbc, aes(x = concave_points3)) +
+  geom_density()
+p2 <- ggplot(wdbc, aes(x = perimeter3)) +
+  geom_density()
+p3 <- ggplot(wdbc, aes(x = concave_points1)) +
+  geom_density()
+p4 <- ggplot(wdbc, aes(x = radius3)) +
+  geom_density()
+p5 <- ggplot(wdbc, aes(x = perimeter1)) +
+  geom_density()
+p6 <- ggplot(wdbc, aes(x = area3)) +
+  geom_density()
+
+grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
+```
+
+Further steps
+========================================================
+
+- Data partitioning
+- Cross validation 
+
+```{r echo = FALSE}
+set.seed(1)
+which_train <- createDataPartition(wdbc$class, 
+                                   p = 0.8, 
+                                   list = FALSE) 
+
+train <- wdbc[which_train,]
+test <- wdbc[-which_train,]
+
+ctrl_cv3x2 <- trainControl(method = "repeatedcv",
+                           number = 3,
+                           classProbs = TRUE,
+                           summaryFunction = twoClassSummary,
+                           repeats = 2)
+```
+
+
+Distribution of the dependent variable in both sets
+========================================================
+
+```{r, echo = FALSE}
+tabyl(train$class)
+tabyl(test$class)
+```
+
+List of models used
+========================================================
+
+```{r warning = FALSE, echo = FALSE, message = FALSE, include = FALSE}
+logit.train <- 
+  train(class ~ ., 
+        data = train, 
+        method = "glm",
+        metric = "ROC",
+        family = "binomial",
+        trControl = ctrl_cv3x2)
+
+logit.train_forecasts <- predict(logit.train,
+                                 test,
+                                 type = "prob")
+
+roc.logit <- roc.area(ifelse(test$class == "b", 1, 0),
+                      logit.train_forecasts[,"b"])$A
+
+confusion_matrix.logit <- confusionMatrix(
+  data = as.factor(ifelse(logit.train_forecasts["b"] > 0.5, "b", "m")), 
+  reference = test$class, 
+  positive = "b")$table
+
+
+lda.train <- 
+  train(class ~ ., 
+        data = train, 
+        method = "lda",
+        metric = "ROC",
+        trControl = ctrl_cv3x2)
+
+lda.train_forecasts <- predict(lda.train,
+                               test,
+                               type = "prob")
+
+confusion_matrix.lda <- confusionMatrix(
+  data = as.factor(ifelse(lda.train_forecasts["b"] > 0.5, "b", "m")), 
+  reference = test$class, 
+  positive = "b")$table
+
+roc.lda <- roc.area(ifelse(test$class == "b", 1, 0),
+                    lda.train_forecasts[,"b"])$A
+
+
+
+qda.train <- 
+  train(class ~ ., 
+        data = train, 
+        method = "qda",
+        metric = "ROC",
+        trControl = ctrl_cv3x2)
+
+qda.train_forecasts <- predict(qda.train,
+                               test,
+                               type = "prob")
+
+roc.qda <- roc.area(ifelse(test$class == "b", 1, 0),
+                    qda.train_forecasts[,"b"])$A
+
+confusion_matrix.qda <- confusionMatrix(
+  data = as.factor(ifelse(qda.train_forecasts["b"] > 0.5, "b", "m")), 
+  reference = test$class, 
+  positive = "b")$table
+
+
+train.knn_cv_scaled <- 
+  train(class ~ .,
+        data = train, 
+        method = "knn",
+        trControl = ctrl_cv3x2,
+        tuneGrid = data.frame(k = 1:30),
+        metric = "ROC",
+        preProcess = c("range"))
+
+knn.forecasts <- predict(train.knn_cv_scaled,
+                         test)
+
+roc.knn <- roc.area(ifelse(test$class == "b", 1, 0),
+                    ifelse(knn.forecasts == "b", 1, 0))$A
+
+confusion_matrix.knn <- confusionMatrix(
+  data = knn.forecasts,
+  reference = test$class, 
+  positive = "b")$table 
+
+
+
+parametersC <- data.frame(C = c(0.001, 0.01, 0.02, 0.05,  
+                                0.1, 0.2, 0.5, 1, 2, 5))
+
+svm_Linear <- train(class ~ .,  
+                    data = train,  
+                    method = "svmLinear", 
+                    tuneGrid = parametersC, 
+                    metric = "ROC",
+                    trControl = ctrl_cv3x2)
+
+svm_Linear_forecasts <- predict(svm_Linear,  
+                                newdata = test) 
+
+roc.svm_linear <- roc.area(ifelse(test$class == "b", 1, 0),
+                           ifelse(svm_Linear_forecasts == "b", 1, 0))$A
+
+confusion_matrix.svm_linear <- confusionMatrix(
+  data = svm_Linear_forecasts,
+  reference = test$class, 
+  positive = "b")$table
+```
+
+```{r warning = FALSE, echo = FALSE, include = FALSE}
+parametersC_sigma <-  
+  expand.grid(C = c(0.01, 0.05, 0.1, 0.5, 1, 5), 
+              sigma = c(0.05, 0.1, 0.2, 0.5, 1)) 
+
+svm_Radial <- train(class ~ .,  
+                    data = train,  
+                    method = "svmRadial", 
+                    tuneGrid = parametersC_sigma, 
+                    trControl = ctrl_cv3x2) 
+
+svm_Radial_forecasts <- predict(svm_Radial,  
+                                newdata = test)
+
+roc.svm_radial <- roc.area(ifelse(test$class == "b", 1, 0),
+                           ifelse(svm_Radial_forecasts == "b", 1, 0))$A
+
+confusion_matrix.svm_radial <- confusionMatrix(
+  data = svm_Radial_forecasts,
+  reference = test$class, 
+  positive = "b")$table
+```
+
+
+- Logistic Regression
+- Linear Discriminant Analysis
+- Quadratic Discriminant Analysis
+- K nearest neighbors
+- Linear Support Vector Machines
+- Radial Support Vector Machines
+
+Confusion matrix of Logit and LDA models
+========================================================
+
+```{r}
+confusion_matrix.logit
+confusion_matrix.lda
+```
+
+Confusion matrix of QDA and KNN models
+========================================================
+
+```{r}
+confusion_matrix.qda
+confusion_matrix.knn
+```
+
+Confusion matrix of SVM_lineaer and SVM_radial models
+========================================================
+
+```{r}
+confusion_matrix.svm_linear
+confusion_matrix.svm_radial
+```
+
+Best model - ROC
+========================================================
+
+```{r warning = FALSE, echo = FALSE}
+test.roc <- data.frame(model=c("logit","lda","qda","knn","svm_linear", "svm_radial"),
+                       roc=c(roc.logit, roc.lda, roc.qda, roc.knn,roc.svm_linear, roc.svm_radial))
+test.roc <- test.roc[order(test.roc$roc, decreasing=TRUE),]
+test.roc$model <- factor(test.roc$model, levels=test.roc$model)
+test.roc
+```
+
+
+Plot - ROC
+========================================================
+
+```{r warning = FALSE, echo = FALSE}
+theme_set(theme_gray(base_size = 18))
+ggplot(data = test.roc, aes(x = model, y = roc)) +
+  geom_bar(stat="identity")
+```
